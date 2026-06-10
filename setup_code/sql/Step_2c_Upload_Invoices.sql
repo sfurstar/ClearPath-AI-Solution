@@ -1,0 +1,16 @@
+-- =========================================================
+-- STEP 2C - UPLOAD INVOICES TO STAGE
+-- Upload ClearPath invoice PDFs to the SSE stage.
+--
+-- Option A: Snowsight UI
+--   Navigate to Data > Databases > CLEARPATH_AI_POC_DB >
+--   RAW_DOCS > Stages > INVOICE_STAGE_SSE > + Files
+--
+-- Option B: SnowSQL PUT (recommended for automation)
+--   PUT 'file:///path/to/poc_invoices/*.pdf'
+--     @CLEARPATH_AI_POC_DB.RAW_DOCS.INVOICE_STAGE_SSE
+--     AUTO_COMPRESS=FALSE OVERWRITE=TRUE;
+--
+-- After upload, verify:
+--   LIST @CLEARPATH_AI_POC_DB.RAW_DOCS.INVOICE_STAGE_SSE;
+-- =========================================================

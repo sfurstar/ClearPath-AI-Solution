@@ -1,0 +1,5 @@
+# ClearPath Safety Solutions — Local Python Dependencies
+# Used for: setup_code/python/Step_2a_generate_invoice_pdfs.py
+# Run: pip install -r requirements.txt
+
+reportlab>=4.0.0

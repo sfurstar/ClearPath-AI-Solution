@@ -1,0 +1,13 @@
+definition_version: 2
+entities:
+  streamlit_app:
+    type: streamlit
+    main_file: streamlit_app.py
+    title: "ClearPath_AR_Reconciliation_Agent"
+    query_warehouse: "CLEARPATH_APP_WH"
+    compute_pool: "SYSTEM_COMPUTE_POOL_CPU"
+    runtime_name: "SYSTEM_RUNTIME"
+    artifacts:
+      - pyproject.toml
+      - streamlit_app.py
+      - .streamlit/config.toml
