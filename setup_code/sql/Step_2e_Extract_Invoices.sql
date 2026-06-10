@@ -35,11 +35,11 @@ SELECT
         1, 1, 'ie', 1
     ) AS INVOICE_NUMBER,
 
-    -- Customer name: bold name in Bill To section
+    -- Customer name: first line after the Bill To separator row
     TRIM(
         REGEXP_SUBSTR(
             PARSED_TEXT,
-            'Bill To[^|]*\\|[^|]*\\n\\s*([A-Za-z0-9 .&,()-]+)\\n',
+            '\\| --- \\| --- \\|\\n\\|\\s+([^\\n|]+)\\n',
             1, 1, 'ie', 1
         )
     ) AS CUSTOMER_NAME,
