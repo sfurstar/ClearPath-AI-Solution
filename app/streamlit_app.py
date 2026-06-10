@@ -125,13 +125,13 @@ def apply_custom_theme() -> None:
 
             .stApp {{
                 background:
-                    radial-gradient(circle at top right, rgba(30, 94, 255, 0.08), transparent 26%),
+                    radial-gradient(circle at top right, rgba(244, 121, 32, 0.07), transparent 26%),
                     linear-gradient(180deg, #f7faff 0%, #eef4fb 100%);
                 color: var(--brand-ink);
             }}
 
             [data-testid="stSidebar"] {{
-                background: linear-gradient(180deg, #102747 0%, #142f57 100%);
+                background: linear-gradient(180deg, #1B3A5C 0%, #152D48 100%);
                 border-right: 1px solid rgba(255,255,255,0.08);
             }}
 
@@ -161,7 +161,7 @@ def apply_custom_theme() -> None:
             }}
 
             .ns-hero {{
-                background: linear-gradient(135deg, rgba(15,39,71,0.98) 0%, rgba(20,47,87,0.98) 58%, rgba(30,94,255,0.92) 100%);
+                background: linear-gradient(135deg, rgba(27,58,92,0.98) 0%, rgba(21,45,72,0.98) 58%, rgba(244,121,32,0.85) 100%);
                 border: 1px solid rgba(255,255,255,0.08);
                 border-radius: 24px;
                 padding: 1.4rem 1.5rem;
@@ -244,7 +244,7 @@ def apply_custom_theme() -> None:
                 border: 1px solid var(--brand-line);
                 border-radius: 20px;
                 padding: 1rem 1rem 0.3rem 1rem;
-                box-shadow: 0 10px 25px rgba(15,39,71,0.05);
+                box-shadow: 0 10px 25px rgba(27,58,92,0.05);
                 margin-bottom: 1rem;
             }}
 
@@ -265,7 +265,7 @@ def apply_custom_theme() -> None:
                 border-radius: 18px;
                 padding: 1rem 1.05rem;
                 border: 1px solid var(--brand-line);
-                box-shadow: 0 8px 22px rgba(15,39,71,0.05);
+                box-shadow: 0 8px 22px rgba(27,58,92,0.05);
                 margin-bottom: 0.9rem;
             }}
 
@@ -298,7 +298,7 @@ def apply_custom_theme() -> None:
                 border: 1px solid var(--brand-line);
                 border-radius: 18px;
                 padding: 0.9rem 1rem;
-                box-shadow: 0 10px 24px rgba(15,39,71,0.05);
+                box-shadow: 0 10px 24px rgba(27,58,92,0.05);
             }}
 
             .ns-kpi-label {{
@@ -334,10 +334,10 @@ def apply_custom_theme() -> None:
             .stButton > button, .stFormSubmitButton > button {{
                 border-radius: 14px !important;
                 border: 1px solid rgba(255,255,255,0.08) !important;
-                background: linear-gradient(135deg, #1E5EFF 0%, #1747C9 100%) !important;
+                background: linear-gradient(135deg, #F47920 0%, #D4610A 100%) !important;
                 color: white !important;
                 font-weight: 700 !important;
-                box-shadow: 0 10px 20px rgba(30,94,255,0.18);
+                box-shadow: 0 10px 20px rgba(244,121,32,0.25);
             }}
 
             .stButton > button:hover, .stFormSubmitButton > button:hover {{
@@ -551,8 +551,17 @@ def infer_answer_type(response: Dict[str, Any]) -> str:
     hints = " ".join(extract_tool_hints(response)).lower()
     response_text = json.dumps(response).lower()
 
-    used_analyst = "analyst" in hints or "financeanalyst" in response_text
-    used_search = "search" in hints or "invoicesearch" in response_text
+    used_analyst = (
+        "analyst" in hints
+        or "financeanalyst" in response_text
+        or "orderanalyst" in response_text
+        or "cortex_analyst" in response_text
+    )
+    used_search = (
+        "search" in hints
+        or "invoicesearch" in response_text
+        or "cortex_search" in response_text
+    )
 
     if used_analyst and used_search:
         return "Hybrid comparison"
@@ -562,9 +571,9 @@ def infer_answer_type(response: Dict[str, Any]) -> str:
         return "Document evidence"
 
     text = " ".join(extract_text_blocks(response)).lower()
-    if "erp" in text and "invoice document" in text:
+    if "erp" in text and ("invoice document" in text or "doc value" in text):
         return "Hybrid comparison"
-    if "invoice" in text and ("total amount due" in text or "document" in text):
+    if "sku" in text or "line item" in text or ("invoice" in text and ("total amount due" in text or "document" in text)):
         return "Document evidence"
     return "Structured analysis"
 
@@ -598,7 +607,7 @@ def render_answer_type_badge(answer_type: str) -> None:
             margin: 6px 0 14px 0;
             color: {style['text']};
             font-weight: 700;
-            box-shadow: 0 8px 20px rgba(15,39,71,0.05);
+            box-shadow: 0 8px 20px rgba(27,58,92,0.05);
         ">
             <span class="ns-pill" style="background:{style['pill']}; color:{style['text']};">Response profile</span>
             {answer_type}
@@ -619,7 +628,7 @@ def render_info_card(title: str, body: str, tone: str = "Default") -> None:
             border-radius: 16px;
             margin: 8px 0 14px 0;
             color: {style['text']};
-            box-shadow: 0 8px 18px rgba(15,39,71,0.04);
+            box-shadow: 0 8px 18px rgba(27,58,92,0.04);
         ">
             <div style="font-weight: 800; margin-bottom: 6px;">{title}</div>
             <div>{body}</div>
