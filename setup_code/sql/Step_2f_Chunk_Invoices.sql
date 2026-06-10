@@ -105,7 +105,7 @@ summary_chunk AS (
             '| Bill To |' ||
             SPLIT_PART(
                 SPLIT_PART(PARSED_TEXT, '| Bill To |', 2),
-                '| SKU | Description |', 1
+                '|  SKU | Description |', 1
             )
         ) AS CHUNK_TEXT
     FROM base
@@ -124,9 +124,9 @@ line_items_chunk AS (
         'LINE_ITEMS'                AS CHUNK_TYPE,
         4                           AS CHUNK_INDEX,
         TRIM(
-            '| SKU | Description |' ||
+            '|  SKU | Description |' ||
             SPLIT_PART(
-                SPLIT_PART(PARSED_TEXT, '| SKU | Description |', 2),
+                SPLIT_PART(PARSED_TEXT, '|  SKU | Description |', 2),
                 'Remit payment by the due date',
                 1
             )
