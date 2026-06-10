@@ -225,7 +225,7 @@ VALUES
 -- ---------------------------------------------------------
 -- Verification
 -- ---------------------------------------------------------
-SELECT 'CUSTOMER_RAW'  AS tbl, COUNT(*) AS rows FROM CUSTOMER_RAW
+SELECT 'CUSTOMER_RAW'  AS tbl, COUNT(*) AS total_rows FROM CUSTOMER_RAW
 UNION ALL
 SELECT 'INVOICE_RAW',  COUNT(*) FROM INVOICE_RAW
 UNION ALL
