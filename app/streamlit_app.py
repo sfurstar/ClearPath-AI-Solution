@@ -1168,7 +1168,7 @@ def render_latest_answer_panel() -> None:
     inline_title = st.session_state.latest_inline_title
     if inline_df is not None and not inline_df.empty:
         st.markdown(f"**{inline_title}** ({len(inline_df)} records)")
-        st.dataframe(inline_df, use_container_width=True, hide_index=True)
+        st.dataframe(inline_df, use_container_width=True)
 
     supporting = st.session_state.latest_supporting_evidence
     if supporting and supporting.get("rows"):
