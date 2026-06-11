@@ -523,6 +523,60 @@ def extract_text_blocks(response: Dict[str, Any]) -> List[str]:
     return ["No response returned."]
 
 
+def extract_table_blocks(response: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Parse type:'table' blocks from the agent response content array.
+    Returns a list of dicts with keys: 'title', 'df' (DataFrame).
+    These blocks contain the full result set the agent queried —
+    no summarization, all rows, proper column names.
+    """
+    content = response.get("content", [])
+    tables = []
+
+    if not isinstance(content, list):
+        return tables
+
+    for item in content:
+        if not isinstance(item, dict) or item.get("type") != "table":
+            continue
+
+        table_block = item.get("table", {})
+        result_set = table_block.get("result_set", {})
+        data = result_set.get("data", [])
+        metadata = result_set.get("resultSetMetaData", {})
+        row_types = metadata.get("rowType", [])
+        title = table_block.get("title", "Query results")
+
+        if not data or not row_types:
+            continue
+
+        # Extract column names from rowType metadata
+        columns = [col.get("name", f"col_{i}") for i, col in enumerate(row_types)]
+
+        # Build rows — each row is a list of values in column order
+        rows = []
+        for row in data:
+            if isinstance(row, list):
+                rows.append(dict(zip(columns, row)))
+
+        if rows:
+            df = pd.DataFrame(rows)
+
+            # Format numeric currency columns for readability
+            currency_hints = {"AMOUNT", "OPEN_AMOUNT", "INVOICE_AMOUNT",
+                              "TOTAL_DUE", "ERP_AMOUNT", "DOC_AMOUNT",
+                              "PAID_AMOUNT", "REVENUE_AMOUNT"}
+            for col in df.columns:
+                if col.upper() in currency_hints:
+                    df[col] = pd.to_numeric(df[col], errors="coerce").map(
+                        lambda v: f"${v:,.2f}" if pd.notna(v) else ""
+                    )
+
+            tables.append({"title": title, "df": df})
+
+    return tables
+
+
 def extract_tool_hints(response: Dict[str, Any]) -> List[str]:
     hints: List[str] = []
 
@@ -771,74 +825,6 @@ def get_hybrid_evidence(invoice_id: str) -> Optional[Dict[str, Any]]:
     }
 
 
-
-def get_outstanding_balances_table():
-    """Direct query — bypasses LLM summarization."""
-    session = get_session()
-    rows = session.sql(
-        """
-        SELECT
-            CUSTOMER_NAME        AS CUSTOMER,
-            TOTAL_OPEN_AMOUNT    AS OPEN_BALANCE,
-            TOTAL_OVERDUE_AMOUNT AS OVERDUE_AMOUNT
-        FROM CLEARPATH_AI_POC_DB.CURATED_FINANCE.CUSTOMER_BALANCE_SUM_V
-        WHERE TOTAL_OPEN_AMOUNT > 0
-        ORDER BY TOTAL_OPEN_AMOUNT DESC
-        """
-    ).collect()
-    if not rows:
-        return None
-    df = pd.DataFrame([r.as_dict() for r in rows])
-    df["OPEN_BALANCE"] = pd.to_numeric(df["OPEN_BALANCE"], errors="coerce").map("${:,.2f}".format)
-    df["OVERDUE_AMOUNT"] = pd.to_numeric(df["OVERDUE_AMOUNT"], errors="coerce").map("${:,.2f}".format)
-    df.columns = ["Customer", "Open Balance", "Overdue Amount"]
-    return df
-
-
-def get_overdue_invoices_table():
-    """Direct query — bypasses LLM summarization."""
-    session = get_session()
-    rows = session.sql(
-        """
-        SELECT
-            INVOICE_ID                                      AS INVOICE,
-            ERP_CUSTOMER_NAME                               AS CUSTOMER,
-            ERP_AMOUNT                                      AS AMOUNT,
-            CAST(ERP_DUE_DATE AS VARCHAR)                   AS DUE_DATE,
-            DATEDIFF('day', ERP_DUE_DATE, CURRENT_DATE())   AS DAYS_OVERDUE,
-            OVERALL_RECON_STATUS                            AS RECON_STATUS
-        FROM CLEARPATH_AI_POC_DB.CURATED_FINANCE.INVOICE_RECON_V
-        WHERE ERP_DUE_DATE < CURRENT_DATE()
-          AND ERP_AMOUNT > 0
-        ORDER BY DATEDIFF('day', ERP_DUE_DATE, CURRENT_DATE()) DESC, ERP_AMOUNT DESC
-        """
-    ).collect()
-    if not rows:
-        return None
-    df = pd.DataFrame([r.as_dict() for r in rows])
-    df["AMOUNT"] = pd.to_numeric(df["AMOUNT"], errors="coerce").map("${:,.2f}".format)
-    df.columns = ["Invoice", "Customer", "Amount", "Due Date", "Days Overdue", "Recon Status"]
-    return df
-
-
-def detect_inline_table_query(prompt: str):
-    """Returns (df, title) when prompt asks for a full list to render as table."""
-    p = normalize_prompt(prompt)
-    outstanding_patterns = ["highest outstanding balance","highest open balance",
-        "outstanding balance","open balance","open amount"]
-    overdue_patterns = ["overdue invoice","all overdue","show overdue",
-        "list overdue","show me all the overdue","show me overdue"]
-    if any(pat in p for pat in outstanding_patterns) and "customer" in p:
-        df = get_outstanding_balances_table()
-        return df, "All customers — outstanding balances"
-    if any(pat in p for pat in overdue_patterns):
-        df = get_overdue_invoices_table()
-        return df, "All overdue invoices"
-    return None, None
-
-
-
-
 def get_customer_mismatch_evidence() -> Optional[Dict[str, Any]]:
     session = get_session()
     rows = session.sql(
@@ -990,10 +976,8 @@ def init_state() -> None:
     if "latest_supporting_evidence" not in st.session_state:
         st.session_state.latest_supporting_evidence = None
 
-    if "latest_inline_table" not in st.session_state:
-        st.session_state.latest_inline_table = None
-    if "latest_inline_title" not in st.session_state:
-        st.session_state.latest_inline_title = ""
+    if "latest_agent_tables" not in st.session_state:
+        st.session_state.latest_agent_tables = []
 
 
 def render_sidebar() -> None:
@@ -1026,8 +1010,7 @@ def render_sidebar() -> None:
         st.session_state.latest_answer_type = ""
         st.session_state.latest_structured_result = None
         st.session_state.latest_supporting_evidence = None
-        st.session_state.latest_inline_table = None
-        st.session_state.latest_inline_title = ""
+        st.session_state.latest_agent_tables = []
         st.experimental_rerun()
 
     st.sidebar.divider()
@@ -1163,12 +1146,13 @@ def render_latest_answer_panel() -> None:
     if tool_hints:
         st.caption("Possible tools used: " + ", ".join(tool_hints))
 
-    # ── INLINE TABLE — render full dataset directly when LLM would truncate ──
-    inline_df = st.session_state.latest_inline_table
-    inline_title = st.session_state.latest_inline_title
-    if inline_df is not None and not inline_df.empty:
-        st.markdown(f"**{inline_title}** ({len(inline_df)} records)")
-        st.dataframe(inline_df, use_container_width=True)
+    # ── AGENT TABLE BLOCKS — full result sets returned by the agent ──────────
+    # These come from type:'table' blocks in the agent response.
+    # They contain every row the agent queried — no LLM summarization.
+    agent_tables = st.session_state.latest_agent_tables
+    for tbl in agent_tables:
+        st.markdown(f"**{tbl['title']}** ({len(tbl['df'])} records)")
+        st.dataframe(tbl["df"], use_container_width=True)
 
     supporting = st.session_state.latest_supporting_evidence
     if supporting and supporting.get("rows"):
@@ -1212,20 +1196,19 @@ def render_chat_input() -> None:
     with st.spinner("Running finance agent..."):
         response = call_agent(prompt)
         structured_result = get_structured_result(prompt)
-        inline_df, inline_title = detect_inline_table_query(prompt)
 
     texts = extract_text_blocks(response)
     answer = "\n\n".join(texts) if texts else "No response returned."
     answer_type = infer_answer_type(response)
     supporting_evidence = get_supporting_evidence(prompt, answer_type)
+    agent_tables = extract_table_blocks(response)
 
     st.session_state.messages.append({"role": "assistant", "content": answer})
     st.session_state.latest_response = response
     st.session_state.latest_answer_type = answer_type
     st.session_state.latest_structured_result = structured_result
     st.session_state.latest_supporting_evidence = supporting_evidence
-    st.session_state.latest_inline_table = inline_df
-    st.session_state.latest_inline_title = inline_title
+    st.session_state.latest_agent_tables = agent_tables
 
     st.experimental_rerun()
 
